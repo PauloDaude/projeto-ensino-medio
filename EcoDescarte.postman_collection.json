@@ -1,0 +1,54 @@
+{
+  "info": {
+    "name": "EcoDescarte - Cadastro e Login",
+    "description": "Rotas da API do projeto. Rode `python app.py` antes. O Postman guarda o cookie de sessão sozinho: depois do Login, a rota 'Quem está logado' funciona.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:5000" }
+  ],
+  "item": [
+    {
+      "name": "1. Cadastro",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nome\": \"Ana\",\n  \"email\": \"ana@email.com\",\n  \"senha\": \"123456\"\n}"
+        },
+        "url": "{{baseUrl}}/api/cadastro",
+        "description": "Cria um usuário. Respostas: 201 criado, 400 dados inválidos (senha < 6 caracteres), 409 e-mail já cadastrado."
+      }
+    },
+    {
+      "name": "2. Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"ana@email.com\",\n  \"senha\": \"123456\"\n}"
+        },
+        "url": "{{baseUrl}}/api/login",
+        "description": "Faz login e devolve um cookie de sessão. Respostas: 200 ok, 401 e-mail ou senha incorretos."
+      }
+    },
+    {
+      "name": "3. Quem está logado",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/eu",
+        "description": "Retorna os dados do usuário logado. Respostas: 200 ok, 401 não está logado."
+      }
+    },
+    {
+      "name": "4. Logout",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/logout",
+        "description": "Apaga a sessão. Depois disso, 'Quem está logado' volta a dar 401."
+      }
+    }
+  ]
+}

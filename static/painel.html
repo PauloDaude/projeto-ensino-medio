@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EcoDescarte - Painel</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+  <h1>♻️ Painel</h1>
+  <p id="saudacao">Carregando...</p>
+  <button id="sair">Sair</button>
+
+  <script>
+    // Ao abrir a página, perguntamos ao backend: "quem está logado?"
+    async function carregar() {
+      const resposta = await fetch("/api/eu");
+
+      if (!resposta.ok) {
+        location.href = "/"; // não está logado: volta para o login
+        return;
+      }
+
+      const usuario = await resposta.json();
+      document.getElementById("saudacao").textContent =
+        `Olá, ${usuario.nome}! Seu e-mail é ${usuario.email}.`;
+    }
+
+    document.getElementById("sair").addEventListener("click", async () => {
+      await fetch("/api/logout", { method: "POST" });
+      location.href = "/";
+    });
+
+    carregar();
+  </script>
+</body>
+</html>

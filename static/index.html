@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EcoDescarte - Entrar</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+  <h1>♻️ EcoDescarte</h1>
+
+  <div class="caixas">
+    <form id="form-cadastro">
+      <h2>Criar conta</h2>
+      <input name="nome" placeholder="Nome" required>
+      <input name="email" type="email" placeholder="E-mail" required>
+      <input name="senha" type="password" placeholder="Senha (mín. 6)" required>
+      <button>Cadastrar</button>
+    </form>
+
+    <form id="form-login">
+      <h2>Entrar</h2>
+      <input name="email" type="email" placeholder="E-mail" required>
+      <input name="senha" type="password" placeholder="Senha" required>
+      <button>Entrar</button>
+    </form>
+  </div>
+
+  <p id="mensagem"></p>
+
+  <script>
+    const mensagem = document.getElementById("mensagem");
+
+    // Função que manda os dados do formulário para o backend (Python)
+    async function enviar(url, formulario) {
+      const dados = Object.fromEntries(new FormData(formulario)); // {email: "...", senha: "..."}
+
+      const resposta = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dados),
+      });
+
+      const json = await resposta.json();
+      mensagem.textContent = json.mensagem || json.erro;
+      mensagem.className = resposta.ok ? "ok" : "erro";
+      return resposta.ok;
+    }
+
+    document.getElementById("form-cadastro").addEventListener("submit", async (evento) => {
+      evento.preventDefault(); // impede a página de recarregar
+      if (await enviar("/api/cadastro", evento.target)) evento.target.reset();
+    });
+
+    document.getElementById("form-login").addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      if (await enviar("/api/login", evento.target)) location.href = "painel.html";
+    });
+  </script>
+</body>
+</html>
