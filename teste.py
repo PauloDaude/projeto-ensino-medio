@@ -6,6 +6,7 @@ import app as aplicacao
 
 aplicacao.BANCO = os.path.join(tempfile.mkdtemp(), "teste.db")
 aplicacao.criar_tabela()
+aplicacao.criar_admin_inicial()
 cliente = aplicacao.app.test_client()
 
 usuario = {"nome": "Ana", "email": "ana@email.com", "senha": "123456"}
@@ -28,10 +29,7 @@ assert cliente.patch(f"/api/denuncias/{criada['id']}", json={"status": "resolvid
 
 # Admin (outro navegador = outro cliente) responde
 admin = aplicacao.app.test_client()
-admin.post("/api/cadastro", json={"nome": "Bombeiro", "email": "admin@email.com", "senha": "123456"})
-saida = aplicacao.app.test_cli_runner().invoke(args=["tornar-admin", "admin@email.com"]).output
-assert "agora é admin" in saida
-admin.post("/api/login", json={"email": "admin@email.com", "senha": "123456"})
+assert admin.post("/api/login", json={"email": "admin@ecodescarte.com", "senha": "admin123"}).status_code == 200
 admin.post("/api/denuncias", json={**denuncia, "descricao": "Pneus na beira do rio"})
 assert len(admin.get("/api/denuncias").get_json()) == 2  # admin vê todas
 assert len(cliente.get("/api/denuncias").get_json()) == 1  # Ana só vê a dela
@@ -50,6 +48,18 @@ assert len(cliente.get("/api/denuncias?status=resolvida").get_json()) == 0
 # Resumo é público
 assert aplicacao.app.test_client().get("/api/denuncias/resumo").get_json() == \
     {"aberta": 1, "em_andamento": 1, "resolvida": 0, "total": 2}
+
+# ---- Usuários: só admin lista e muda perfil
+assert cliente.get("/api/usuarios").status_code == 403  # Ana não é admin
+usuarios = admin.get("/api/usuarios").get_json()
+assert all("senha_hash" not in u for u in usuarios)  # senha nunca sai da API
+ana = next(u for u in usuarios if u["email"] == "ana@email.com")
+eu_admin = admin.get("/api/eu").get_json()
+assert admin.patch(f"/api/usuarios/{ana['id']}", json={"perfil": "chefe"}).status_code == 400
+assert admin.patch(f"/api/usuarios/{eu_admin['id']}", json={"perfil": "usuario"}).status_code == 400
+assert admin.patch("/api/usuarios/999", json={"perfil": "admin"}).status_code == 404
+assert admin.patch(f"/api/usuarios/{ana['id']}", json={"perfil": "admin"}).get_json()["perfil"] == "admin"
+assert len(cliente.get("/api/denuncias").get_json()) == 2  # agora Ana vê todas
 
 cliente.post("/api/logout")
 assert cliente.get("/api/eu").status_code == 401

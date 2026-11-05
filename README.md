@@ -45,14 +45,20 @@ Os `.excalidraw` abrem em https://excalidraw.com (menu → Abrir).
 | GET | `/api/denuncias/<id>` | Detalhes / acompanhar status | 200, 401, 404 |
 | PATCH | `/api/denuncias/<id>` | Admin muda status e responde | 200, 400, 401, 403, 404 |
 | GET | `/api/denuncias/resumo` | Total por status (público) | 200 |
+| GET | `/api/usuarios` | Lista usuários (só admin, sem a senha) | 200, 401, 403 |
+| PATCH | `/api/usuarios/<id>` | Admin muda o perfil de alguém | 200, 400, 401, 403, 404 |
 
-### Como virar admin
+### Admin
 
-Cadastre o usuário pelo site e rode no terminal (com o `.venv` ativado):
+Ao iniciar, o sistema cria um **admin inicial** (se ainda não existir):
 
-```bash
-flask --app app tornar-admin email@dele.com
-```
+- e-mail: `admin@ecodescarte.com`
+- senha: `admin123`
+
+Na vida real esses valores vêm de variáveis de ambiente (`ADMIN_EMAIL` e `ADMIN_SENHA`), nunca do código.
+
+Para promover outra pessoa: faça login como admin, descubra o `id` dela em `GET /api/usuarios` e envie
+`PATCH /api/usuarios/<id>` com `{"perfil": "admin"}`. A collection do Postman tem a pasta "Usuários (admin)".
 
 > Mudou uma tabela no `app.py`? Apague o `banco.db` e rode de novo: o `CREATE TABLE IF NOT EXISTS`
 > não altera tabela que já existe.
@@ -75,7 +81,9 @@ Exemplo pequeno de propósito. A ideia é entender, copiar o padrão e adaptar p
 | `JOIN` (trazer o nome de quem denunciou) | `SELECT_DENUNCIA` |
 | Filtro pela URL (`?status=aberta`) | `listar_denuncias` |
 | `COUNT` + `GROUP BY` (relatório) | `resumo_denuncias` |
-| Comando de terminal | `tornar_admin` |
+| Primeiro admin criado ao iniciar + variáveis de ambiente | `criar_admin_inicial` |
+| Nunca devolver a senha na API (escolher colunas no `SELECT`) | `listar_usuarios` |
+| Regra de negócio: admin não muda o próprio perfil | `mudar_perfil` |
 
 ### Como isso vira o seu projeto
 

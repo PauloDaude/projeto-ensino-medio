@@ -1,7 +1,7 @@
+import os
 import sqlite3
 from functools import wraps
 
-import click  # já vem instalado junto com o Flask
 from flask import Flask, jsonify, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -250,19 +250,55 @@ def resumo_denuncias():
     return jsonify(resumo)
 
 
-# Comando de terminal para transformar alguém em admin:
-#   flask --app app tornar-admin ana@email.com
-@app.cli.command("tornar-admin")
-@click.argument("email")
-def tornar_admin(email):
+# ------------------------------------------------------------------ USUÁRIOS (admin)
+
+
+@app.get("/api/usuarios")
+@admin_obrigatorio
+def listar_usuarios():
+    # Nunca devolva a senha_hash! Escolha as colunas em vez de usar SELECT *.
     with conectar() as conexao:
-        cursor = conexao.execute(
-            "UPDATE usuarios SET perfil = 'admin' WHERE email = ?", (email.strip().lower(),)
+        usuarios = conexao.execute("SELECT id, nome, email, perfil FROM usuarios ORDER BY id").fetchall()
+    return jsonify([dict(u) for u in usuarios])
+
+
+@app.patch("/api/usuarios/<int:usuario_id>")
+@admin_obrigatorio
+def mudar_perfil(usuario_id):
+    perfil = request.get_json().get("perfil")
+
+    if perfil not in ("usuario", "admin"):
+        return jsonify(erro="Perfil deve ser 'usuario' ou 'admin'."), 400
+    if usuario_id == session["usuario_id"]:
+        # Evita o admin tirar o próprio acesso e o sistema ficar sem nenhum admin.
+        return jsonify(erro="Você não pode mudar o seu próprio perfil."), 400
+
+    with conectar() as conexao:
+        cursor = conexao.execute("UPDATE usuarios SET perfil = ? WHERE id = ?", (perfil, usuario_id))
+        if cursor.rowcount == 0:
+            return jsonify(erro="Usuário não encontrado."), 404
+        usuario = conexao.execute(
+            "SELECT id, nome, email, perfil FROM usuarios WHERE id = ?", (usuario_id,)
+        ).fetchone()
+
+    return jsonify(dict(usuario))
+
+
+def criar_admin_inicial():
+    """Todo sistema precisa de um primeiro admin. Ele é criado ao iniciar, se ainda não existir.
+    Na vida real, e-mail e senha vêm de variáveis de ambiente, nunca escritos no código."""
+    email = os.environ.get("ADMIN_EMAIL", "admin@ecodescarte.com")
+    senha = os.environ.get("ADMIN_SENHA", "admin123")
+    with conectar() as conexao:
+        conexao.execute(
+            # OR IGNORE: se o e-mail já existe (UNIQUE), não faz nada
+            "INSERT OR IGNORE INTO usuarios (nome, email, senha_hash, perfil) VALUES (?, ?, ?, 'admin')",
+            ("Administrador", email, generate_password_hash(senha)),
         )
-    print(f"{email} agora é admin." if cursor.rowcount else f"Nenhum usuário com o e-mail {email}.")
 
 
 criar_tabela()
+criar_admin_inicial()
 
 if __name__ == "__main__":
     app.run(debug=True)

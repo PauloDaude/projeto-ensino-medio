@@ -56,8 +56,58 @@
       }
     },
     {
+      "name": "Usuários (admin)",
+      "description": "O sistema cria um admin inicial ao iniciar: admin@ecodescarte.com / admin123. Faça login com ele para usar estas rotas.",
+      "item": [
+        {
+          "name": "Login como admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@ecodescarte.com\",\n  \"senha\": \"admin123\"\n}"
+            },
+            "description": "Login com o admin criado automaticamente."
+          }
+        },
+        {
+          "name": "Listar usuários",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/usuarios",
+            "description": "Só admin. Use para descobrir o id de quem você quer promover. Respostas: 200, 401 não logado, 403 não é admin."
+          }
+        },
+        {
+          "name": "Mudar perfil de usuário",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/usuarios/2",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"perfil\": \"admin\"\n}"
+            },
+            "description": "Só admin. Troque o 2 pelo id do usuário. 'perfil': 'admin' ou 'usuario'. Respostas: 200, 400 perfil inválido ou tentando mudar o próprio, 401, 403, 404 não existe."
+          }
+        }
+      ]
+    },
+    {
       "name": "Denúncias",
-      "description": "Faça o Login antes. Para testar como admin: cadastre outro usuário, rode no terminal `flask --app app tornar-admin email@dele.com` e faça login com ele.",
+      "description": "Faça o Login antes. Para testar como admin, use a pasta 'Usuários (admin)': o admin inicial é admin@ecodescarte.com / admin123.",
       "item": [
         {
           "name": "Registrar denúncia",
