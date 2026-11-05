@@ -84,7 +84,10 @@
           <p><b>#${d.id}</b> <span class="status ${d.status}">${d.status}</span></p>
           <p class="descricao"></p>
           <p class="meta">por <span class="quem"></span> em ${d.criada_em} •
-            <a target="_blank" href="https://www.openstreetmap.org/?mlat=${d.latitude}&mlon=${d.longitude}#map=17/${d.latitude}/${d.longitude}">ver no mapa</a></p>
+            <a target="_blank" href="https://www.google.com/maps/search/?api=1&query=${d.latitude},${d.longitude}">abrir no Google Maps</a></p>
+          <!-- Mapa do Google sem chave de API. "output=embed" não é oficial: funciona, mas o Google pode mudar. -->
+          <iframe src="https://maps.google.com/maps?q=${d.latitude},${d.longitude}&z=16&output=embed"
+                  width="100%" height="250" style="border:0" loading="lazy"></iframe>
           <p class="resposta"></p>`;
         // textContent (e não innerHTML) com texto digitado pelo usuário: evita que alguém injete HTML/JS
         cartao.querySelector(".descricao").textContent = d.descricao;
