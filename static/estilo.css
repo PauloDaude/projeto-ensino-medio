@@ -39,3 +39,32 @@ button {
 
 .ok { color: #2e7d32; }
 .erro { color: #c62828; }
+
+textarea, select {
+  padding: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.linha textarea {
+  flex: 1;
+}
+
+.cartao {
+  background: white;
+  padding: 4px 16px 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.meta { color: #666; font-size: 0.9rem; }
+.status { padding: 2px 8px; border-radius: 4px; font-size: 0.85rem; }
+.aberta { background: #ffe3e3; }
+.em_andamento { background: #fff3bf; }
+.resolvida { background: #d3f9d8; }

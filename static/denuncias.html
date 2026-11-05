@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EcoDescarte - Denúncias</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+  <h1>🚯 Denúncias de descarte irregular</h1>
+  <p><a href="painel.html">← Voltar ao painel</a></p>
+
+  <form id="form-denuncia">
+    <h2>Nova denúncia</h2>
+    <textarea name="descricao" placeholder="O que você viu? Ex: entulho jogado no terreno" rows="3" required></textarea>
+    <input name="latitude" placeholder="Latitude" required>
+    <input name="longitude" placeholder="Longitude" required>
+    <button type="button" id="localizacao">📍 Usar minha localização</button>
+    <button>Enviar denúncia</button>
+  </form>
+
+  <p id="mensagem"></p>
+  <h2 id="titulo-lista">Minhas denúncias</h2>
+  <div id="lista"></div>
+
+  <script>
+    const mensagem = document.getElementById("mensagem");
+    const form = document.getElementById("form-denuncia");
+    let admin = false;
+
+    function mostrar(json, ok) {
+      mensagem.textContent = json.erro || "Salvo!";
+      mensagem.className = ok ? "ok" : "erro";
+    }
+
+    // O navegador pergunta ao usuário se pode usar a localização (GPS / Wi-Fi)
+    document.getElementById("localizacao").addEventListener("click", () => {
+      navigator.geolocation.getCurrentPosition(
+        (posicao) => {
+          form.latitude.value = posicao.coords.latitude;
+          form.longitude.value = posicao.coords.longitude;
+        },
+        () => mostrar({ erro: "Não foi possível pegar a localização." }, false)
+      );
+    });
+
+    form.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      const resposta = await fetch("/api/denuncias", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(Object.fromEntries(new FormData(form))),
+      });
+      mostrar(await resposta.json(), resposta.ok);
+      if (resposta.ok) {
+        form.reset();
+        carregar();
+      }
+    });
+
+    // Só o admin vê isso: muda o status e escreve uma resposta (PATCH)
+    async function responder(id, cartao) {
+      const resposta = await fetch(`/api/denuncias/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: cartao.querySelector("select").value,
+          resposta: cartao.querySelector("textarea").value,
+        }),
+      });
+      mostrar(await resposta.json(), resposta.ok);
+      carregar();
+    }
+
+    async function carregar() {
+      const denuncias = await (await fetch("/api/denuncias")).json();
+      const lista = document.getElementById("lista");
+      lista.innerHTML = denuncias.length ? "" : "Nenhuma denúncia ainda.";
+
+      for (const d of denuncias) {
+        const cartao = document.createElement("div");
+        cartao.className = "cartao";
+        cartao.innerHTML = `
+          <p><b>#${d.id}</b> <span class="status ${d.status}">${d.status}</span></p>
+          <p class="descricao"></p>
+          <p class="meta">por <span class="quem"></span> em ${d.criada_em} •
+            <a target="_blank" href="https://www.openstreetmap.org/?mlat=${d.latitude}&mlon=${d.longitude}#map=17/${d.latitude}/${d.longitude}">ver no mapa</a></p>
+          <p class="resposta"></p>`;
+        // textContent (e não innerHTML) com texto digitado pelo usuário: evita que alguém injete HTML/JS
+        cartao.querySelector(".descricao").textContent = d.descricao;
+        cartao.querySelector(".quem").textContent = d.denunciante;
+        cartao.querySelector(".resposta").textContent = d.resposta ? `Resposta: ${d.resposta}` : "";
+
+        if (admin) {
+          const painel = document.createElement("div");
+          painel.className = "linha";
+          painel.innerHTML = `
+            <select>
+              <option value="aberta">aberta</option>
+              <option value="em_andamento">em_andamento</option>
+              <option value="resolvida">resolvida</option>
+            </select>
+            <textarea rows="1" placeholder="Resposta (opcional)"></textarea>
+            <button>Responder</button>`;
+          painel.querySelector("select").value = d.status;
+          painel.querySelector("button").onclick = () => responder(d.id, painel);
+          cartao.append(painel);
+        }
+        lista.append(cartao);
+      }
+    }
+
+    // Ao abrir: precisa estar logado. Se for admin, mostra todas e os controles de resposta.
+    fetch("/api/eu").then(async (resposta) => {
+      if (!resposta.ok) return (location.href = "/");
+      admin = (await resposta.json()).perfil === "admin";
+      if (admin) document.getElementById("titulo-lista").textContent = "Todas as denúncias (admin)";
+      carregar();
+    });
+  </script>
+</body>
+</html>

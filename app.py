@@ -1,5 +1,7 @@
 import sqlite3
+from functools import wraps
 
+import click  # já vem instalado junto com o Flask
 from flask import Flask, jsonify, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -23,9 +25,54 @@ def criar_tabela():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nome TEXT NOT NULL,
                 email TEXT NOT NULL UNIQUE,
-                senha_hash TEXT NOT NULL
+                senha_hash TEXT NOT NULL,
+                perfil TEXT NOT NULL DEFAULT 'usuario'  -- 'usuario' ou 'admin'
             )
         """)
+        conexao.execute("""
+            CREATE TABLE IF NOT EXISTS denuncias (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                usuario_id INTEGER NOT NULL REFERENCES usuarios(id), -- quem denunciou
+                descricao TEXT NOT NULL,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                status TEXT NOT NULL DEFAULT 'aberta',  -- aberta, em_andamento, resolvida
+                resposta TEXT,                          -- preenchida pelo admin
+                criada_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                atualizada_em TEXT
+            )
+        """)
+
+
+def login_obrigatorio(rota):
+    """Decorator: colocado em cima de uma rota, bloqueia quem não está logado."""
+    @wraps(rota)
+    def verificar(*args, **kwargs):
+        if "usuario_id" not in session:
+            return jsonify(erro="Você precisa estar logado."), 401
+        return rota(*args, **kwargs)
+    return verificar
+
+
+def eh_admin():
+    with conectar() as conexao:
+        usuario = conexao.execute(
+            "SELECT perfil FROM usuarios WHERE id = ?", (session.get("usuario_id"),)
+        ).fetchone()
+    return usuario is not None and usuario["perfil"] == "admin"
+
+
+def admin_obrigatorio(rota):
+    """Decorator: só deixa passar quem está logado E tem perfil admin."""
+    @wraps(rota)
+    def verificar(*args, **kwargs):
+        if "usuario_id" not in session:
+            return jsonify(erro="Você precisa estar logado."), 401
+        if not eh_admin():
+            # 401 = não sei quem você é. 403 = sei quem você é, mas você não pode.
+            return jsonify(erro="Apenas administradores podem fazer isso."), 403
+        return rota(*args, **kwargs)
+    return verificar
 
 
 @app.get("/")
@@ -80,14 +127,11 @@ def login():
 
 
 @app.get("/api/eu")
+@login_obrigatorio
 def eu():
-    usuario_id = session.get("usuario_id")
-    if usuario_id is None:
-        return jsonify(erro="Você não está logado."), 401
-
     with conectar() as conexao:
         usuario = conexao.execute(
-            "SELECT id, nome, email FROM usuarios WHERE id = ?", (usuario_id,)
+            "SELECT id, nome, email, perfil FROM usuarios WHERE id = ?", (session["usuario_id"],)
         ).fetchone()
 
     return jsonify(dict(usuario))
@@ -97,6 +141,125 @@ def eu():
 def logout():
     session.clear()
     return jsonify(mensagem="Você saiu.")
+
+
+# ------------------------------------------------------------------ DENÚNCIAS
+# Fluxo: usuário registra (com localização) -> acompanha o status -> admin responde.
+
+STATUS_DENUNCIA = ("aberta", "em_andamento", "resolvida")
+
+SELECT_DENUNCIA = """SELECT denuncias.*, usuarios.nome AS denunciante
+                     FROM denuncias JOIN usuarios ON usuarios.id = denuncias.usuario_id"""
+
+
+@app.post("/api/denuncias")
+@login_obrigatorio
+def registrar_denuncia():
+    dados = request.get_json()
+    descricao = (dados.get("descricao") or "").strip()
+    try:
+        latitude = float(dados.get("latitude"))
+        longitude = float(dados.get("longitude"))
+    except (TypeError, ValueError):  # veio vazio ou texto que não é número
+        return jsonify(erro="Latitude e longitude precisam ser números."), 400
+
+    if not descricao:
+        return jsonify(erro="Descreva o problema."), 400
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        return jsonify(erro="Localização inválida."), 400
+
+    with conectar() as conexao:
+        cursor = conexao.execute(
+            "INSERT INTO denuncias (usuario_id, descricao, latitude, longitude) VALUES (?, ?, ?, ?)",
+            (session["usuario_id"], descricao, latitude, longitude),
+        )
+        denuncia = conexao.execute(SELECT_DENUNCIA + " WHERE denuncias.id = ?", (cursor.lastrowid,)).fetchone()
+
+    return jsonify(dict(denuncia)), 201
+
+
+@app.get("/api/denuncias")
+@login_obrigatorio
+def listar_denuncias():
+    sql = SELECT_DENUNCIA + " WHERE 1 = 1"
+    parametros = []
+
+    # Usuário comum só vê as PRÓPRIAS denúncias. Admin vê todas.
+    if not eh_admin():
+        sql += " AND denuncias.usuario_id = ?"
+        parametros.append(session["usuario_id"])
+
+    status = request.args.get("status")
+    if status:
+        sql += " AND denuncias.status = ?"
+        parametros.append(status)
+
+    with conectar() as conexao:
+        denuncias = conexao.execute(sql + " ORDER BY denuncias.id DESC", parametros).fetchall()
+
+    return jsonify([dict(d) for d in denuncias])
+
+
+@app.get("/api/denuncias/<int:denuncia_id>")
+@login_obrigatorio
+def detalhar_denuncia(denuncia_id):
+    with conectar() as conexao:
+        denuncia = conexao.execute(SELECT_DENUNCIA + " WHERE denuncias.id = ?", (denuncia_id,)).fetchone()
+
+    # Denúncia de outra pessoa responde 404 (e não 403) para não revelar que ela existe.
+    if denuncia is None or (denuncia["usuario_id"] != session["usuario_id"] and not eh_admin()):
+        return jsonify(erro="Denúncia não encontrada."), 404
+    return jsonify(dict(denuncia))
+
+
+@app.patch("/api/denuncias/<int:denuncia_id>")
+@admin_obrigatorio
+def responder_denuncia(denuncia_id):
+    # PATCH = altera só alguns campos (aqui: status e resposta). PUT substituiria tudo.
+    dados = request.get_json()
+    status = dados.get("status")
+    resposta = (dados.get("resposta") or "").strip() or None
+
+    if status not in STATUS_DENUNCIA:
+        return jsonify(erro=f"Status deve ser um destes: {', '.join(STATUS_DENUNCIA)}."), 400
+
+    with conectar() as conexao:
+        cursor = conexao.execute(
+            """UPDATE denuncias SET status = ?, resposta = COALESCE(?, resposta),
+               atualizada_em = CURRENT_TIMESTAMP WHERE id = ?""",
+            (status, resposta, denuncia_id),
+        )
+        if cursor.rowcount == 0:
+            return jsonify(erro="Denúncia não encontrada."), 404
+        denuncia = conexao.execute(SELECT_DENUNCIA + " WHERE denuncias.id = ?", (denuncia_id,)).fetchone()
+
+    return jsonify(dict(denuncia))
+
+
+@app.get("/api/denuncias/resumo")
+def resumo_denuncias():
+    # Público: quantas denúncias em cada status. Base para relatórios e o "reciclômetro".
+    with conectar() as conexao:
+        linhas = conexao.execute(
+            "SELECT status, COUNT(*) AS total FROM denuncias GROUP BY status"
+        ).fetchall()
+
+    resumo = {status: 0 for status in STATUS_DENUNCIA}
+    resumo.update({linha["status"]: linha["total"] for linha in linhas})
+    resumo["total"] = sum(resumo.values())
+    return jsonify(resumo)
+
+
+# Comando de terminal para transformar alguém em admin:
+#   flask --app app tornar-admin ana@email.com
+@app.cli.command("tornar-admin")
+@click.argument("email")
+def tornar_admin(email):
+    with conectar() as conexao:
+        cursor = conexao.execute(
+            "UPDATE usuarios SET perfil = 'admin' WHERE email = ?", (email.strip().lower(),)
+        )
+    print(f"{email} agora é admin." if cursor.rowcount else f"Nenhum usuário com o e-mail {email}.")
 
 
 criar_tabela()

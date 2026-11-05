@@ -5,14 +5,22 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://127.0.0.1:5000" }
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5000"
+    }
   ],
   "item": [
     {
       "name": "1. Cadastro",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"nome\": \"Ana\",\n  \"email\": \"ana@email.com\",\n  \"senha\": \"123456\"\n}"
@@ -25,7 +33,12 @@
       "name": "2. Login",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"email\": \"ana@email.com\",\n  \"senha\": \"123456\"\n}"
@@ -41,6 +54,89 @@
         "url": "{{baseUrl}}/api/eu",
         "description": "Retorna os dados do usuário logado. Respostas: 200 ok, 401 não está logado."
       }
+    },
+    {
+      "name": "Denúncias",
+      "description": "Faça o Login antes. Para testar como admin: cadastre outro usuário, rode no terminal `flask --app app tornar-admin email@dele.com` e faça login com ele.",
+      "item": [
+        {
+          "name": "Registrar denúncia",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/denuncias",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descricao\": \"Entulho jogado no terreno baldio\",\n  \"latitude\": -10.1753,\n  \"longitude\": -48.8823\n}"
+            },
+            "description": "Qualquer usuário logado. Respostas: 201 criada, 400 descrição vazia ou localização inválida, 401 não logado."
+          }
+        },
+        {
+          "name": "Listar denúncias",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/denuncias?status=aberta",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "denuncias"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "aberta",
+                  "description": "Opcional: aberta, em_andamento ou resolvida",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Usuário comum vê só as próprias denúncias; admin vê todas. Ative o filtro 'status' na aba Params."
+          }
+        },
+        {
+          "name": "Detalhar denúncia",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/denuncias/1",
+            "description": "Acompanhar status. Respostas: 200 ok, 404 não existe ou é de outra pessoa."
+          }
+        },
+        {
+          "name": "Responder denúncia (admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/denuncias/1",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"em_andamento\",\n  \"resposta\": \"Equipe da prefeitura a caminho.\"\n}"
+            },
+            "description": "Só admin. Respostas: 200 ok, 400 status inválido, 401 não logado, 403 não é admin, 404 não existe."
+          }
+        },
+        {
+          "name": "Resumo por status",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/denuncias/resumo",
+            "description": "Público. Quantas denúncias em cada status (base para relatórios e contadores)."
+          }
+        }
+      ]
     },
     {
       "name": "4. Logout",

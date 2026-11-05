@@ -22,8 +22,15 @@ Para testar tudo de uma vez: `python teste.py`
 | `app.py` | Backend: rotas da API e banco de dados |
 | `static/index.html` | Telas de cadastro e login |
 | `static/painel.html` | Página que só quem está logado vê |
+| `static/denuncias.html` | Registrar, acompanhar e responder denúncias |
 | `static/estilo.css` | Visual |
 | `banco.db` | Banco SQLite (criado sozinho ao rodar) |
+| `teste.py` | Testa todo o fluxo: `python teste.py` |
+| `EcoDescarte.postman_collection.json` | Rotas para importar no Postman |
+| `arquitetura.excalidraw` | Diagrama da aula 1: frontend, API, banco e login |
+| `denuncias.excalidraw` | Diagrama da aula 2: perfis, tabelas, status e relatório |
+
+Os `.excalidraw` abrem em https://excalidraw.com (menu → Abrir).
 
 ## Rotas da API
 
@@ -33,6 +40,61 @@ Para testar tudo de uma vez: `python teste.py`
 | POST | `/api/login` | Faz login | 200 ok, 401 e-mail/senha errados |
 | GET | `/api/eu` | Diz quem está logado | 200 ok, 401 não logado |
 | POST | `/api/logout` | Sai | 200 ok |
+| POST | `/api/denuncias` | Registra denúncia com localização (logado) | 201, 400, 401 |
+| GET | `/api/denuncias?status=aberta` | Lista: usuário vê as suas, admin vê todas | 200, 401 |
+| GET | `/api/denuncias/<id>` | Detalhes / acompanhar status | 200, 401, 404 |
+| PATCH | `/api/denuncias/<id>` | Admin muda status e responde | 200, 400, 401, 403, 404 |
+| GET | `/api/denuncias/resumo` | Total por status (público) | 200 |
+
+### Como virar admin
+
+Cadastre o usuário pelo site e rode no terminal (com o `.venv` ativado):
+
+```bash
+flask --app app tornar-admin email@dele.com
+```
+
+> Mudou uma tabela no `app.py`? Apague o `banco.db` e rode de novo: o `CREATE TABLE IF NOT EXISTS`
+> não altera tabela que já existe.
+
+## Aula 2: Denúncias (exemplo base)
+
+Exemplo pequeno de propósito. A ideia é entender, copiar o padrão e adaptar para o seu projeto.
+
+### O que tem de novo
+
+| Conceito | Onde ver no `app.py` |
+|---|---|
+| Perfis de acesso (usuário x admin) | coluna `perfil`, `admin_obrigatorio` |
+| 401 x 403 | `admin_obrigatorio` |
+| Decorator (`@login_obrigatorio`) para não repetir a checagem de login | `login_obrigatorio` |
+| Registro ligado ao usuário logado (chave estrangeira) | `usuario_id REFERENCES usuarios(id)` |
+| Geolocalização (latitude/longitude) | `registrar_denuncia` + botão 📍 em `static/denuncias.html` |
+| Cada usuário só vê o que é dele | `listar_denuncias`, `detalhar_denuncia` |
+| Status que muda com o tempo + PATCH | `responder_denuncia` |
+| `JOIN` (trazer o nome de quem denunciou) | `SELECT_DENUNCIA` |
+| Filtro pela URL (`?status=aberta`) | `listar_denuncias` |
+| `COUNT` + `GROUP BY` (relatório) | `resumo_denuncias` |
+| Comando de terminal | `tornar_admin` |
+
+### Como isso vira o seu projeto
+
+| Exemplo | Green Flames (bombeiros) | EcoDescarte |
+|---|---|---|
+| Registrar denúncia com localização | Registrar denúncia de foco de incêndio | Cadastrar local de coleta |
+| Admin responde / muda status | Responder denúncia | Admin aprova/desativa local de coleta |
+| Usuário acompanha o status | Acompanhar status da denúncia | Histórico de descartes |
+| Resumo com `COUNT/GROUP BY` | Relatório de denúncias | Reciclômetro (`SUM` da quantidade) |
+| Perfil admin | Bombeiro | Administrador (AT1) |
+
+### Desafios
+
+1. **Fácil:** adicionar o campo `endereco` (texto opcional) na denúncia.
+2. **Médio:** criar `GET /api/denuncias?busca=entulho` procurando na descrição (dica: `LIKE`).
+3. **Médio:** criar `DELETE /api/denuncias/<id>`: o dono pode apagar enquanto estiver `aberta`.
+4. **Difícil:** mostrar todas as denúncias num mapa com a biblioteca [Leaflet](https://leafletjs.com).
+5. **Seu projeto:** copiar o padrão para a entidade principal do seu sistema
+   (foco de incêndio, local de coleta, registro de descarte...).
 
 ## Roteiro da aula 1 (1 hora)
 
